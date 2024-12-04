@@ -18,5 +18,5 @@ FROM base AS project
 WORKDIR /project
 COPY --chown=node:node --from=build /build/node_modules ./node_modules
 COPY --chown=node:node --from=build /build/dist ./dist
-COPY --chown=node:node --from=build /build/forestadmin-schema.json ./forestadmin-schema.json
+
 ENTRYPOINT ["node", "./dist/main.js"]

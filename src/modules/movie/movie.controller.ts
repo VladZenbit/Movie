@@ -21,41 +21,40 @@ import {
 import { MovieEntity } from 'src/entities';
 
 import { GetUser } from '../users/decorators/get-user.decorators';
+import { UserProfileDto } from '../users/dto/user-profile.dto';
 
-import { CreateMovieDto } from './dto/create-movie-dto';
+import { CreateMovieResponseBodyDto } from './dto/create-movie-response-body-dto';
 import { GetAllMoviesequestQuery } from './dto/get-all-movies-request.dto';
 import { GetMovieResponseBodyDto } from './dto/get-movie-response-body-dto';
 import { GetMoviesResponseBodyDto } from './dto/get-movies-response-body-dto';
-import { UpdateMovieDto } from './dto/update-movie.dto';
+import { UpdateMovieResponseBodyDto } from './dto/update-movie-response-body-dto.dto';
 import { MovieService } from './movie.service';
 
 @ApiTags('Movies')
 @Controller('movies')
 export class MovieController {
-  private readonly movieService: MovieService;
-
-  constructor(movieService: MovieService) {
-    this.movieService = movieService;
-  }
+  constructor(private readonly movieService: MovieService) {}
 
   @Post()
   @UseInterceptors(FileInterceptor('movieImage'))
   @ApiConsumes('multipart/form-data')
   @ApiOkResponse({ description: 'Create a new movie', type: MovieEntity })
-  @ApiExtraModels(CreateMovieDto)
+  @ApiExtraModels(CreateMovieResponseBodyDto)
   async createMovie(
     @GetUser() user,
-    @Body() body: CreateMovieDto,
+    @Body() body: CreateMovieResponseBodyDto,
     @UploadedFile(
       new ParseFilePipeBuilder()
         .addFileTypeValidator({ fileType: '(image/png|image/jpeg|image/svg)' })
         .build({ fileIsRequired: false }),
     )
-    movieImage?: Express.Multer.File,
-  ): Promise<MovieEntity> {
+    movieImage: Express.Multer.File,
+  ): Promise<GetMovieResponseBodyDto> {
     body.movieImage = movieImage;
 
-    return this.movieService.createMovie(body, user);
+    const movie = await this.movieService.createMovie(body, user);
+
+    return new GetMovieResponseBodyDto(movie);
   }
 
   @Patch(':id')
@@ -63,19 +62,21 @@ export class MovieController {
   @ApiConsumes('multipart/form-data')
   @ApiOkResponse({ description: 'Update a movie', type: MovieEntity })
   async updateMovie(
-    @GetUser() user,
+    @GetUser() user: UserProfileDto,
     @Param('id') id: string,
-    @Body() updateMovieDto: UpdateMovieDto,
+    @Body() updateMovieDto: UpdateMovieResponseBodyDto,
     @UploadedFile(
       new ParseFilePipeBuilder()
         .addFileTypeValidator({ fileType: '(image/png|image/jpeg|image/svg)' })
         .build({ fileIsRequired: false }),
     )
     movieImage?: Express.Multer.File,
-  ): Promise<MovieEntity> {
+  ): Promise<GetMovieResponseBodyDto> {
     updateMovieDto.movieImage = movieImage;
 
-    return this.movieService.updateMovie(id, updateMovieDto, user);
+    const movie = await this.movieService.updateMovie(id, updateMovieDto, user);
+
+    return new GetMovieResponseBodyDto(movie);
   }
 
   @Get(':id')

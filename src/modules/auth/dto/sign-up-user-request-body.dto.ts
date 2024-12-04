@@ -1,9 +1,9 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsString, IsNotEmpty, IsEmail } from 'class-validator';
 
-import { SignInUserDto } from './sign-in-user.dto';
+import { SignInUserRequestBodyDto } from './sign-in-user.dto';
 
-export class SignUpUserDto extends SignInUserDto {
+export class SignUpUserRequestBodyDto extends SignInUserRequestBodyDto {
   @ApiProperty({
     example: 'John',
     description: 'The first name of the user',

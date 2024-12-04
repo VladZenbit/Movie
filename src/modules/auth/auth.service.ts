@@ -7,11 +7,12 @@ import { UserProfileDto } from '../users/dto/user-profile.dto';
 import { UsersService } from '../users/users.service';
 
 import { AccessTokenDto } from './dto/access-token.dto';
-import { SignInUserDto } from './dto/sign-in-user.dto';
-import { SignUpUserDto } from './dto/sign-up-user.dto';
+import { SignInUserRequestBodyDto } from './dto/sign-in-user.dto';
 import { PasswordIsNotValidException } from './exceptions/password-is-not-valid.exception';
 import { UserWithEmailAlreadyExistException } from './exceptions/user-with-email-already-exist.exception';
 import { UserWithThisEmailNotFoundException } from './exceptions/user-with-this-email-not-found.exception';
+import { SignInPayload } from './types/sign-in-payload';
+import { SignUpPayload } from './types/sign-up-payload';
 
 @Injectable()
 export class AuthService {
@@ -20,7 +21,9 @@ export class AuthService {
     private readonly jwtService: JwtService,
   ) {}
 
-  async validateUser(userData: SignInUserDto): Promise<UserProfileDto> {
+  async authorizeUser(
+    userData: SignInUserRequestBodyDto,
+  ): Promise<UserProfileDto> {
     const user = await this.usersService.findByEmail(userData.email);
 
     if (!user) {
@@ -41,7 +44,7 @@ export class AuthService {
     return userProfile;
   }
 
-  async signUpUser(signUpUserDto: SignUpUserDto): Promise<AccessTokenDto> {
+  async signUpUser(signUpUserDto: SignUpPayload): Promise<AccessTokenDto> {
     const existingUser = await this.usersService.findByEmail(
       signUpUserDto.email,
     );
@@ -73,8 +76,8 @@ export class AuthService {
     };
   }
 
-  async signInUser(signInBody: SignInUserDto): Promise<AccessTokenDto> {
-    const user = await this.validateUser(signInBody);
+  async signInUser(signInBody: SignInPayload): Promise<AccessTokenDto> {
+    const user = await this.authorizeUser(signInBody);
 
     return this.singInUserWithJWT(user);
   }

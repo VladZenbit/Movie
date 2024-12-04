@@ -1,7 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsOptional, IsString } from 'class-validator';
 
-export class CreateMovieDto {
+export class CreateMovieResponseBodyDto {
   @IsString()
   @ApiProperty({ description: 'Name of the movie' })
   name: string;
@@ -17,5 +17,5 @@ export class CreateMovieDto {
   })
   @ApiProperty({ type: 'string', format: 'binary' })
   @IsOptional()
-  movieImage?: Express.Multer.File;
+  movieImage: Express.Multer.File;
 }

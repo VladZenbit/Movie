@@ -1,33 +1,41 @@
-import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
+import { extname } from 'path';
+
+import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { MovieEntity, UserEntity } from 'src/entities';
 import { Repository } from 'typeorm';
 
-import { FilesService } from '../files/files.service';
+import { StorageService } from '../storage/storage.service';
+import { UserProfileDto } from '../users/dto/user-profile.dto';
 
-import { CreateMovieDto } from './dto/create-movie-dto';
-import { UpdateMovieDto } from './dto/update-movie.dto';
+import { MovieNotFoundException } from './exception/user-with-email-already-exist.exception';
+import { CreateMoviePayload } from './types/create-movie-payload';
+import { UpdateMoviePayload } from './types/update-movie-payload';
 
 @Injectable()
 export class MovieService {
   constructor(
     @InjectRepository(MovieEntity)
     private readonly movieRepository: Repository<MovieEntity>,
-    private readonly fileService: FilesService,
+    private readonly storageService: StorageService,
   ) {}
 
   async createMovie(
-    createMovieDto: CreateMovieDto,
-    user: UserEntity,
+    createMovieDto: CreateMoviePayload,
+    user: UserProfileDto,
   ): Promise<MovieEntity> {
     const { movieImage } = createMovieDto;
 
-    const { key } = await this.fileService.uploadFile(movieImage, 'movie');
+    const imageUrl = await this.storageService.upload({
+      file: movieImage.buffer,
+      filePath: `movie/${user.id}${extname(movieImage.originalname)}`,
+      preserveFileName: true,
+    });
 
     const movie = this.movieRepository.create({
       ...createMovieDto,
       user,
-      imageUrl: key,
+      imageUrl: imageUrl,
     });
 
     return this.movieRepository.save(movie);
@@ -35,24 +43,28 @@ export class MovieService {
 
   async updateMovie(
     id: string,
-    updateMovieDto: UpdateMovieDto,
-    user: UserEntity,
+    updateMovieDto: UpdateMoviePayload,
+    user: UserProfileDto,
   ): Promise<MovieEntity> {
     const { movieImage } = updateMovieDto;
     const movie = await this.movieRepository.findOneBy({ id });
 
     if (!movie) {
-      throw new HttpException('Movie not found', HttpStatus.NOT_FOUND);
+      throw new MovieNotFoundException(id);
     }
 
     if (movieImage) {
       if (movie.imageUrl) {
-        await this.fileService.deleteFile(movie.imageUrl);
+        await this.storageService.delete(movie.imageUrl);
       }
 
-      const { key } = await this.fileService.uploadFile(movieImage, `movie`);
+      const imageUrl = await this.storageService.upload({
+        file: movieImage.buffer,
+        filePath: `movie/${user.id}${extname(movieImage.originalname)}`,
+        preserveFileName: true,
+      });
 
-      movie.imageUrl = key;
+      movie.imageUrl = imageUrl;
     }
     Object.assign(movie, updateMovieDto);
 
@@ -60,7 +72,7 @@ export class MovieService {
   }
 
   async getMovieById(id: string): Promise<MovieEntity> {
-    return this.movieRepository.findOneBy({ id });
+    return this.movieRepository.findOneOrFail({ where: { id } });
   }
 
   async getAllMovies(
@@ -69,7 +81,6 @@ export class MovieService {
   ): Promise<{ movies: MovieEntity[]; count: number }> {
     const { skip, take } = options;
 
-    console.log(skip);
     const [movies, count] = await this.movieRepository.findAndCount({
       where: { user: { id: userId } },
       skip,
