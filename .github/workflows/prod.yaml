@@ -1,117 +1,133 @@
-# This workflow will do a clean installation of node dependencies, cache/restore them, build the source code and run tests across different versions of node
-# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-nodejs
-
-name: CI/CD Prod Pipeline AWS
-env:
-  EB_PACKAGE_S3_BUCKET_NAME: ${{ secrets.PROD_EB_PACKAGE_S3_BUCKET_NAME }}
-  EB_ENVIRONMENT_NAME: ${{ secrets.PROD_EB_ENVIRONMENT_NAME }}
-  EB_APPLICATION_NAME: ${{ secrets.PROD_EB_APPLICATION_NAME }}
-  AWS_ACCESS_KEY_ID: ${{ secrets.PROD_AWS_ACCESS_KEY_ID }}
-  AWS_SECRET_ACCESS_KEY: ${{ secrets.PROD_AWS_SECRET_ACCESS_KEY }}
-  AWS_REGION: ${{ secrets.PROD_AWS_ECR_REGION }}
-  VERSION_LABEL: '${{ github.sha }}-${{ github.run_number }}-${{ github.run_attempt }}'
-  NODE_APP_NAME: 'backend_app_${{ github.sha }}.zip'
-
+name: CI/CD Staging
 on:
   push:
-    branches: ['main']
-
+    branches: [main]
+  workflow_dispatch:
 jobs:
-  build:
+  buildAndPublishToECR:
+    name: Build and Publish to AWS ECR
     runs-on: ubuntu-latest
 
     steps:
-      - name: Clone repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Use Node.js 20
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Install dependencies
-        run: npm install
-
-      - name: Create env file
-        run: |
-          cat <<EOF > ./.env
-          NODE_ENV='production'
-          PORT='5000'
-          AWS_ACCESS_KEY_ID='${{ secrets.PROD_AWS_ACCESS_KEY_ID }}'
-          AWS_SECRET_ACCESS_KEY='${{ secrets.PROD_AWS_SECRET_ACCESS_KEY }}'
-          IMAGE_TAG='${{ github.sha }}'
-          DB_TYPE='${{ secrets.PROD_DB_TYPE}}'
-          POSTGRES_USER='${{ secrets.PROD_POSTGRES_USER}}'
-          POSTGRES_DATABASE='${{ secrets.PROD_POSTGRES_DATABASE}}'
-          POSTGRES_PASSWORD='${{ secrets.PROD_POSTGRES_PASSWORD}}'
-          POSTGRES_HOST='${{ secrets.PROD_POSTGRES_HOST}}'
-          POSTGRES_PORT='${{ secrets.PROD_POSTGRES_PORT}}'
-          TYPEORM_LOGGING='${{ secrets.PROD_TYPEORM_LOGGING}}'
-          TYPEORM_SYNC='${{ secrets.PROD_TYPEORM_SYNC}}'
-          DROP_SCHEMA='${{ secrets.PROD_DROP_SCHEMA}}'
-          RUN_MIGRATIONS='${{ secrets.PROD_RUN_MIGRATIONS}}'
-          JWT_SECRET='${{ secrets.PROD_JWT_SECRET}}'
-          ACCESS_TOKEN_VALIDITY_DURATION_IN_SEC='${{ secrets.PROD_ACCESS_TOKEN_VALIDITY_DURATION_IN_SEC}}'
-          SESSION_SECRET='${{ secrets.PROD_SESSION_SECRET}}'
-          CORS_ORIGIN='${{ secrets.PROD_CORS_ORIGIN}}'
-          SECRET_TOKEN='${{ secrets.PROD_SECRET_TOKEN}}'
-          DATABASE_URL: ${{secrets.PROD_DATABASE_URL}}
-          DATABASE_SSL: ${{secrets.DATABASE_SSL}}
-          EOF
-
-      - name: Configure HTTPS security group rule
-        run: |
-          mkdir -p .ebextensions/
-          echo 'Resources:' > .ebextensions/https-instance-securitygroup.config
-          echo '  sslSecurityGroupIngress:' >> .ebextensions/https-instance-securitygroup.config
-          echo '    Type: AWS::EC2::SecurityGroupIngress' >> .ebextensions/https-instance-securitygroup.config
-          echo '    Properties:' >> .ebextensions/https-instance-securitygroup.config
-          echo '      GroupId: { ''Fn::GetAtt'': [''AWSEBSecurityGroup'', ''GroupId''] }' >> .ebextensions/https-instance-securitygroup.config
-          echo '      IpProtocol: tcp' >> .ebextensions/https-instance-securitygroup.config
-          echo '      ToPort: 443' >> .ebextensions/https-instance-securitygroup.config
-          echo '      FromPort: 443' >> .ebextensions/https-instance-securitygroup.config
-          echo '      CidrIp: 0.0.0.0/0' >> .ebextensions/https-instance-securitygroup.config
-
-      - name: Build & Zip roject
-        run: |
-          npm run build
-          zip -r ${{ env.NODE_APP_NAME }} .
-
-      - name: Configure AWS keys
+      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ env.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ env.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
+          aws-access-key-id: ${{ secrets.STAGING_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.STAGING_AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.STAGING_AWS_DEFAULT_REGION }}
 
-      - name: Copy deployment package to S3 bucket
-        run: aws s3 cp ${{ env.NODE_APP_NAME }} s3://${{ env.EB_PACKAGE_S3_BUCKET_NAME }}/
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
 
-  deploy:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build, tag, and push image to Amazon ECR
+        uses: docker/build-push-action@v6
+        env:
+          AWS_ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          AWS_ECR_REPOSITORY: ${{ secrets.STAGING_AWS_ECR_REPOSITORY }}
+          IMAGE_TAG: ${{ github.sha }}
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: '${{ env.AWS_ECR_REGISTRY }}/${{ env.AWS_ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}'
+          # cache-from: type=gha
+          # cache-to: type=gha,mode=max
+
+  deployToEC2:
+    name: Deploy to AWS EC2
+    needs: buildAndPublishToECR
     runs-on: ubuntu-latest
-    needs: [build]
-
     steps:
-      - name: Configure AWS keys
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ env.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ env.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
+          aws-access-key-id: ${{ secrets.STAGING_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.STAGING_AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.STAGING_AWS_DEFAULT_REGION }}
 
-      - name: Create new ElasticBeanstalk Application Version
-        run: |
-          aws elasticbeanstalk create-application-version \
-          --application-name ${{ env.EB_APPLICATION_NAME }} \
-          --source-bundle S3Bucket="${{ env.EB_PACKAGE_S3_BUCKET_NAME }}",S3Key="${{ env.NODE_APP_NAME }}" \
-          --version-label "Ver-${{ env.VERSION_LABEL }}" \
-          --description "CommitSHA-${{ env.VERSION_LABEL }}"
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Deploy new ElasticBeanstalk Application Version
-        run: aws elasticbeanstalk update-environment --environment-name ${{ env.EB_ENVIRONMENT_NAME }} --version-label "Ver-${{ env.VERSION_LABEL }}"
-
-      - name: Wait untill Deploy is finished
-        run: aws elasticbeanstalk wait environment-updated --environment-name ${{ env.EB_ENVIRONMENT_NAME }} --version-label "Ver-${{ env.VERSION_LABEL }}"
-
-      - name: Print Success
-        run: echo "CI/CD successfully finished!"
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@master
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.STAGING_AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.STAGING_AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.STAGING_AWS_DEFAULT_REGION }}
+          AWS_S3_BUCKET: ${{ secrets.STAGING_AWS_S3_BUCKET }}
+          AWS_ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          AWS_ECR_REPOSITORY: ${{ secrets.STAGING_AWS_ECR_REPOSITORY }}
+          IMAGE_TAG: ${{ github.sha }}
+          PORT: ${{ secrets.STAGING_PORT }}
+          DB_HOST: ${{ secrets.STAGING_DB_HOST }}
+          DB_PASSWORD: ${{ secrets.STAGING_DB_PASSWORD }}
+        with:
+          host: ${{ secrets.STAGING_AWS_EC2_HOST }}
+          username: ${{ secrets.STAGING_AWS_EC2_USERNAME }}
+          key: ${{ secrets.STAGING_AWS_EC2_SSH_KEY }}
+          envs: AWS_ACCESS_KEY_ID,AWS_SECRET_ACCESS_KEY,AWS_DEFAULT_REGION,AWS_S3_BUCKET,AWS_ECR_REGISTRY,AWS_ECR_REPOSITORY,IMAGE_TAG,PORT,DB_HOST,DB_PASSWORD,REDIS_PASSWORD,SESSION_SECRET,SMTP_HOST,SMTP_USER,SMTP_PASSWORD,SMTP_FROM,CERTIFICATE_DOMAIN,CERTIFICATE_EMAIL
+          script: |
+            aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $AWS_ECR_REGISTRY
+            docker stop backend redis traefik
+            docker rm backend redis traefik
+            docker rmi $(docker images $AWS_ECR_REGISTRY/$AWS_ECR_REPOSITORY:* -q)
+            docker pull $AWS_ECR_REGISTRY/$AWS_ECR_REPOSITORY:$IMAGE_TAG
+            docker run -d \
+                --name backend \
+                --network host \
+                --restart unless-stopped \
+                --label "traefik.enable=true" \
+                --label 'traefik.http.routers.backend.rule=PathPrefix(`/`)' \
+                --label "traefik.http.services.backend.loadbalancer.server.port=$PORT" \
+                -e NODE_ENV=staging \
+                -e PORT \
+                -e DB_HOST \
+                -e DB_PASSWORD \
+                -e REDIS_PASSWORD \
+                -e SESSION_SECRET \
+                -e SMTP_HOST \
+                -e SMTP_USER \
+                -e SMTP_PASSWORD \
+                -e SMTP_FROM \
+                -e AWS_ACCESS_KEY_ID \
+                -e AWS_SECRET_ACCESS_KEY \
+                -e AWS_DEFAULT_REGION \
+                -e AWS_S3_BUCKET \
+                $AWS_ECR_REGISTRY/$AWS_ECR_REPOSITORY:$IMAGE_TAG
+            docker run -d \
+                --name redis \
+                --network host \
+                --restart unless-stopped \
+                --mount source=redis-data,target=/data \
+                -e REDIS_ARGS="--requirepass $REDIS_PASSWORD --save 60 1 --loglevel warning" \
+                redis/redis-stack-server
+            docker run -d \
+                --name traefik \
+                --network host \
+                --restart unless-stopped \
+                -v letsencrypt:/letsencrypt \
+                -v /var/run/docker.sock:/var/run/docker.sock \
+                traefik:v3.0 \
+                --log.level=INFO \
+                --providers.docker \
+                --providers.docker.exposedbydefault=false \
+                --entrypoints.http.address=:80 \
+                --entrypoints.https.address=:443 \
+                --entrypoints.https.http.tls.certResolver=letsencrypt \
+                --entrypoints.https.http.tls.domains[0].main=$CERTIFICATE_DOMAIN \
+                --certificatesresolvers.letsencrypt.acme.tlschallenge=true \
+                --certificatesresolvers.letsencrypt.acme.email=$CERTIFICATE_EMAIL \
+                --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
+                # --entrypoints.http.http.redirections.entryPoint.to=https \
+                # --entrypoints.http.http.redirections.entryPoint.scheme=https \
