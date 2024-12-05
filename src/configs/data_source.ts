@@ -7,7 +7,7 @@ dotenvConfig();
  */
 const getMigrationConfig = (): DataSourceOptions => {
   const environment = process.env.NODE_ENV;
-  console.log( process.env.DB_PASSWORD)
+
   return {
     type: process.env.DB_TYPE as 'postgres',
     host: process.env.DB_HOST,
@@ -26,7 +26,7 @@ const getMigrationConfig = (): DataSourceOptions => {
     migrationsTransactionMode: 'each',
     dropSchema: process.env.DROP_SCHEMA === 'true',
     ...(['staging', 'production'].includes(environment) && {
-      ssl: { rejectUnauthorized: false },
+      ssl: { rejectUnauthorized: true },
     }),
   };
 };
