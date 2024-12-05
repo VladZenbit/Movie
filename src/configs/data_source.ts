@@ -26,7 +26,7 @@ const getMigrationConfig = (): DataSourceOptions => {
     migrationsTransactionMode: 'each',
     dropSchema: process.env.DROP_SCHEMA === 'true',
     ...(['staging', 'production'].includes(environment) && {
-      ssl: { rejectUnauthorized: true },
+      ssl: { rejectUnauthorized: false },
     }),
   };
 };

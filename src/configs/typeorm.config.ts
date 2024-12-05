@@ -22,5 +22,5 @@ export const dataSource = (
   dropSchema: configService.get<string>('DROP_SCHEMA') === 'true',
   ...(['staging', 'production'].includes(
     configService.get<string>('NODE_ENV'),
-  ) && { ssl: { rejectUnauthorized: true } }),
+  ) && { ssl: { rejectUnauthorized: false } }),
 });
