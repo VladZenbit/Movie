@@ -72,9 +72,12 @@ export class MovieService {
   }
 
   async getMovieById(id: string): Promise<MovieEntity> {
-    return this.movieRepository.findOneOrFail({ where: { id } });
-  }
+    const movie = await this.movieRepository.findOneOrFail({ where: { id } });
 
+    const signedUrl = await this.storageService.getSignedUrl(movie.imageUrl);
+
+    return { ...movie, imageUrl: signedUrl };
+  }
   async getAllMovies(
     userId: string,
     options: { skip?: number; take?: number },
@@ -87,6 +90,13 @@ export class MovieService {
       take,
     });
 
-    return { movies, count };
+    const moviesWithSignedUrls = await Promise.all(
+      movies.map(async (movie) => {
+        const signedUrl = await this.storageService.getSignedUrl(movie.imageUrl);
+        return { ...movie, imageUrl: signedUrl };
+      }),
+    );
+
+    return { movies: moviesWithSignedUrls, count };
   }
 }

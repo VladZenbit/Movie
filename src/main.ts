@@ -11,7 +11,7 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { ValidationException } from './common/exceptions/validation.exception';
 
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3000
 
 const logger = new Logger('Main');
 

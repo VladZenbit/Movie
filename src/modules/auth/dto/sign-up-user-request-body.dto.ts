@@ -27,4 +27,12 @@ export class SignUpUserRequestBodyDto extends SignInUserRequestBodyDto {
   @IsNotEmpty({ message: 'Email cannot be empty' })
   @IsEmail({}, { message: 'Invalid email address format' })
   email: string;
+
+  @ApiProperty({
+    example: '********',
+    description: 'The password of the user',
+  })
+  @IsNotEmpty({ message: 'Password cannot be empty' })
+  @IsString({ message: 'Password should be of type string' })
+  repeatPassword: string;
 }
