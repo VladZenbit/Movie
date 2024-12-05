@@ -45,9 +45,9 @@ export const environmentSchema = z.object({
   SMTP_USER: z.string(),
   SMTP_PASSWORD: z.string(),
   SMTP_FROM: z.string(),
-  AWS_ACCESS_KEY_ID: z.string(),
-  AWS_SECRET_ACCESS_KEY: z.string(),
-  AWS_DEFAULT_REGION: z.string(),
+  BUCKET_AWS_ACCESS_KEY_ID: z.string(),
+  BUCKET_AWS_SECRET_ACCESS_KEY: z.string(),
+  BUCKET_AWS_DEFAULT_REGION: z.string(),
   AWS_DEFAULT_ENDPOINT: z.string().optional(),
-  AWS_S3_BUCKET: z.string(),
+  BUCKET_AWS_S3_BUCKET: z.string(),
 });

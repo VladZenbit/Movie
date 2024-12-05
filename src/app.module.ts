@@ -26,11 +26,11 @@ import { UsersModule } from './modules/users/users.module';
     StorageModule.registerAsync({
       inject: [ConfigService],
       useFactory: (configService: ConfigService<Env, true>) => ({
-        region: configService.get('AWS_DEFAULT_REGION', { infer: true }),
-        bucket: configService.get('AWS_S3_BUCKET', { infer: true }),
+        region: configService.get('BUCKET_AWS_DEFAULT_REGION', { infer: true }),
+        bucket: configService.get('BUCKET_AWS_S3_BUCKET', { infer: true }),
         endpoint: configService.get('AWS_DEFAULT_ENDPOINT', { infer: true }),
-        accessKeyId: configService.get('AWS_ACCESS_KEY_ID', { infer: true }),
-        secretAccessKey: configService.get('AWS_SECRET_ACCESS_KEY', {
+        accessKeyId: configService.get('BUCKET_AWS_ACCESS_KEY_ID', { infer: true }),
+        secretAccessKey: configService.get('BUCKET_AWS_SECRET_ACCESS_KEY', {
           infer: true,
         }),
       }),
