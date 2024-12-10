@@ -28,7 +28,7 @@ export class MovieService {
 
     const imageUrl = await this.storageService.upload({
       file: movieImage.buffer,
-      filePath: `movie/${user.id}${extname(movieImage.originalname)}`,
+      filePath: `movie/${user.id}${movieImage.originalname}`,
       preserveFileName: true,
     });
 
@@ -60,7 +60,7 @@ export class MovieService {
 
       const imageUrl = await this.storageService.upload({
         file: movieImage.buffer,
-        filePath: `movie/${user.id}${extname(movieImage.originalname)}`,
+        filePath: `movie/${user.id}${movieImage.originalname}`,
         preserveFileName: true,
       });
 
@@ -92,10 +92,13 @@ export class MovieService {
 
     const moviesWithSignedUrls = await Promise.all(
       movies.map(async (movie) => {
+
         const signedUrl = await this.storageService.getSignedUrl(movie.imageUrl);
         return { ...movie, imageUrl: signedUrl };
       }),
     );
+
+
 
     return { movies: moviesWithSignedUrls, count };
   }
